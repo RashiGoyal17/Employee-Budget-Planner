@@ -1,0 +1,9 @@
+<p>spreadsheet works!</p>
+
+<div class="toolbar">
+    <button (click)="loadData()">Load Data</button>
+    <button (click)="saveData()">Save Data</button>
+</div>
+
+
+<kendo-spreadsheet #spreadsheet [sheets]="sheets()" style="height:600px;width:100%"></kendo-spreadsheet>
