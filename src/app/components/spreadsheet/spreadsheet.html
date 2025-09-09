@@ -1,9 +1,22 @@
-<p>spreadsheet works!</p>
+<!-- <p>spreadsheet works!</p> -->
 
 <div class="toolbar">
-    <button (click)="loadData()">Load Data</button>
-    <button (click)="saveData()">Save Data</button>
+    <button (click)="loadData()" class="btn btn-primary">Load Data</button>
+    <button (click)="saveData()" class="btn btn-success">Save Data</button>
+    <button (click)="applyDropdowns()" class="btn btn-info">Re-apply Dropdowns</button>
+    <button (click)="deleteSelected()" class="btn btn-danger">Delete Selected</button>
 </div>
 
+<div class="validation-info">
+    <small>
+        <strong>Validation Rules:</strong>
+        Project, Employee, Month & Status: Dropdowns (Required) | 
+        Year: 2020-2030 (Whole Numbers) | 
+        Budget: Positive Decimals (Required) | 
+        Hours: 0-999 Decimals (Required) |
+        Cost: Positive Decimals (Optional) |
+        Comments: Max 500 chars
+    </small>
+</div>
 
 <kendo-spreadsheet #spreadsheet [sheets]="sheets()" style="height:600px;width:100%"></kendo-spreadsheet>

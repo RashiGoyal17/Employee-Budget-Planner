@@ -36,4 +36,8 @@ export class BudgetPlanService {
   getEmployees()  { return this.http.get<{ employeeCode: string; name: string }[]>(`${this.apiRoot}/employees`); }
   getStatuses()   { return this.http.get<{ name: string }[]>(`${this.apiRoot}/statuses`); }
   getMonths()     { return this.http.get<{ monthId: number; name: string }[]>(`${this.apiRoot}/months`); }
+  bulkDelete(ids: number[]): Observable<void> {
+  return this.http.post<void>(`${this.apiRoot}/budgetplans/bulk-delete`, ids);
+}
+
 }

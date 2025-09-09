@@ -1,1 +1,75 @@
-.toolbar { margin-bottom: 10px; }
+.toolbar {
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+}
+
+.toolbar button {
+    margin-right: 10px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #1e7e34;
+}
+
+.btn-info {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #117a8b;
+}
+
+.validation-info {
+    margin-bottom: 10px;
+    padding: 8px;
+    background-color: #e7f3ff;
+    border-left: 4px solid #007bff;
+    font-size: 12px;
+}
+
+/* Custom styles for spreadsheet validation errors */
+.k-spreadsheet .k-validation-error {
+    border: 2px solid #dc3545 !important;
+}
+
+/* Highlight required columns */
+.k-spreadsheet .k-header .k-cell:nth-child(1),
+.k-spreadsheet .k-header .k-cell:nth-child(2),
+.k-spreadsheet .k-header .k-cell:nth-child(3),
+.k-spreadsheet .k-header .k-cell:nth-child(4),
+.k-spreadsheet .k-header .k-cell:nth-child(8) {
+    background-color: #fff3cd !important;
+    border-color: #ffeaa7 !important;
+}
+
+/* Ensure status colors are visible in Kendo Spreadsheet */
+.k-spreadsheet .k-cell {
+    color: inherit !important;
+}
+
+/* Make status column more prominent */
+.k-spreadsheet tbody tr td:nth-child(8) {
+    font-weight: bold !important;
+}
