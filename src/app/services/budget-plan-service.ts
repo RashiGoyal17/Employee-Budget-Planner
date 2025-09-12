@@ -27,17 +27,18 @@ export class BudgetPlanService {
     return this.http.get<PagedResult<BudgetPlan>>(`${this.apiRoot}/budgetplans`, { params });
   }
 
-  bulkUpsert(items: BudgetPlanUpsert[]): Observable<void> {
-    return this.http.post<void>(`${this.apiRoot}/budgetplans/bulk`, items);
-  }
-
   
   getProjects()   { return this.http.get<{ code: string; name: string }[]>(`${this.apiRoot}/projects`); }
   getEmployees()  { return this.http.get<{ employeeCode: string; name: string }[]>(`${this.apiRoot}/employees`); }
   getStatuses()   { return this.http.get<{ name: string }[]>(`${this.apiRoot}/statuses`); }
   getMonths()     { return this.http.get<{ monthId: number; name: string }[]>(`${this.apiRoot}/months`); }
   bulkDelete(ids: number[]): Observable<void> {
-  return this.http.post<void>(`${this.apiRoot}/budgetplans/bulk-delete`, ids);
+  return this.http.post<void>(`${this.apiRoot}/BudgetPlans/bulk-delete`, ids);
 }
+bulkUpsert(items: BudgetPlanUpsert[]): Observable<number> {
+    return this.http.post<number>(`${this.apiRoot}/budgetplans/bulk`, items);
+  }
+
+
 
 }
