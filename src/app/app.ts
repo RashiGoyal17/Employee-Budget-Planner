@@ -5,7 +5,7 @@ import { SpreadsheetWrapperComponent } from "./components/spreadsheet/spreadshee
 @Component({
   selector: 'app-root',
   standalone:true,
-  imports: [SpreadsheetWrapperComponent],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

@@ -1,60 +1,189 @@
+/* Global Theme Variables */
+$primary-color: #AB274F;
+$primary-hover: darken($primary-color, 8%);
+$danger-color: #DC143C;
+$danger-hover: darken($danger-color, 8%);
+$neutral-bg: #fafafa;
+$text-color: #333;
+
+/* Global Theme Variables */
+$primary-color: #AB274F;
+$primary-hover: darken($primary-color, 8%);
+$danger-color: #DC143C;
+$danger-hover: darken($danger-color, 8%);
+$neutral-bg: #fafafa;
+$text-color: #333;
+
+/* Base Styling */
+body {
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: $neutral-bg;
+  color: $text-color;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* Toolbar */
+.toolbar {
+  margin: 0 auto 20px auto;
+  max-width: 1200px;
+  padding: 12px 16px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center; /* 🔑 center-aligns the whole toolbar */
+}
+
+/* Buttons */
+button {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.1s;
+}
+
+button:hover {
+  transform: translateY(-2px);
+}
+
+/* Variants */
+.btn-primary {
+  background-color: $primary-color;
+  color: white;
+}
+.btn-primary:hover {
+  background-color: $primary-hover;
+}
+
+.btn-secondary {
+  background-color: #C08081;
+  color: white;
+}
+.btn-secondary:hover {
+  background-color: darken(#C08081, 8%);
+}
+
+.btn-danger {
+  background-color: $danger-color;
+  color: white;
+}
+.btn-danger:hover {
+  background-color: $danger-hover;
+}
+
+/* Validation Info */
+.validation-info {
+  margin: 0 auto 20px auto;
+  max-width: 1200px;
+  padding: 10px 14px;
+  background-color: #fef6f6;
+  border-left: 4px solid $primary-color;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+
+/* Header */
+h1 {
+  text-align: center;
+  margin: 25px 0 20px 0;
+  color: $primary-color;
+  font-weight: 600;
+  font-size: 1.8rem;
+  letter-spacing: 0.5px;
+}
+
 .toolbar {
     margin-bottom: 10px;
-    padding: 10px;
-    background-color: #f5f5f5;
-    border-radius: 4px;
+    padding: 12px;
+    background-color: #fdfdfd;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .toolbar button {
-    margin-right: 10px;
+    margin: 4px 8px 4px 0;
     padding: 8px 16px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     font-weight: 500;
+    transition: background 0.3s, transform 0.1s;
 }
 
+.toolbar button:hover {
+    transform: translateY(-2px);
+}
+
+/* Button Color Mapping */
 .btn-primary {
-    background-color: #007bff;
+    background-color: #AB274F;
     color: white;
 }
-
 .btn-primary:hover {
-    background-color: #0056b3;
+    background-color: #8f1f41;
 }
 
 .btn-success {
-    background-color: #28a745;
+    background-color: #905D5D;
     color: white;
 }
-
 .btn-success:hover {
-    background-color: #1e7e34;
+    background-color: #6f4343;
 }
 
 .btn-info {
-    background-color: #17a2b8;
+    background-color: #BC8F8F;
     color: white;
 }
-
 .btn-info:hover {
-    background-color: #117a8b;
+    background-color: #a37474;
 }
 
+.btn-danger {
+    background-color: #DC143C;
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #b01030;
+}
+
+.btn-secondary {
+    background-color: #C08081;
+    color: white;
+}
+.btn-secondary:hover {
+    background-color: #a66869;
+}
+
+.btn-warning {
+    background-color: #FDBCB4;
+    color: #6a1a21;
+}
+.btn-warning:hover {
+    background-color: #f7a9a0;
+}
+
+/* Validation Info Panel */
 .validation-info {
-    margin-bottom: 10px;
-    padding: 8px;
-    background-color: #e7f3ff;
-    border-left: 4px solid #007bff;
-    font-size: 12px;
+    margin: 12px 0;
+    padding: 10px;
+    background-color: #fef6f6;
+    border-left: 4px solid #AB274F;
+    font-size: 13px;
+    border-radius: 4px;
 }
 
-/* Custom styles for spreadsheet validation errors */
-.k-spreadsheet .k-validation-error {
-    border: 2px solid #dc3545 !important;
-}
-
-/* Highlight required columns */
+/* Spreadsheet Header Highlights */
 .k-spreadsheet .k-header .k-cell:nth-child(1),
 .k-spreadsheet .k-header .k-cell:nth-child(2),
 .k-spreadsheet .k-header .k-cell:nth-child(3),
@@ -62,14 +191,5 @@
 .k-spreadsheet .k-header .k-cell:nth-child(8) {
     background-color: #fff3cd !important;
     border-color: #ffeaa7 !important;
-}
-
-/* Ensure status colors are visible in Kendo Spreadsheet */
-.k-spreadsheet .k-cell {
-    color: inherit !important;
-}
-
-/* Make status column more prominent */
-.k-spreadsheet tbody tr td:nth-child(8) {
-    font-weight: bold !important;
+    font-weight: 600;
 }

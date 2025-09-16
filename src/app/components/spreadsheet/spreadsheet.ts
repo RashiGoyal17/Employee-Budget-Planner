@@ -1,28 +1,44 @@
-import { AfterViewInit, Component, Injector, OnInit, ViewChild, effect, runInInjectionContext, signal, afterNextRender } from '@angular/core';
+import { AfterViewInit, Component, Injector, OnInit, ViewChild, effect, runInInjectionContext, signal, afterNextRender, NgZone } from '@angular/core';
 import { BudgetPlanService } from '../../services/budget-plan-service';
-import { BudgetPlanUpsert } from '../../models/BudgetPlanModel';
-import { KENDO_SPREADSHEET, SheetDescriptor, SpreadsheetComponent } from '@progress/kendo-angular-spreadsheet';
+import { BudgetPlan, BudgetPlanUpsert } from '../../models/BudgetPlanModel';
+import { KENDO_SPREADSHEET, SheetDescriptor, SpreadsheetComponent,SheetRow } from '@progress/kendo-angular-spreadsheet';
 import { firstValueFrom } from 'rxjs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-spreadsheet',
   standalone: true,
-  imports: [KENDO_SPREADSHEET],
+  imports: [KENDO_SPREADSHEET,FormsModule],
   templateUrl: './spreadsheet.html',
   styleUrl: './spreadsheet.scss'
 })
 export class SpreadsheetWrapperComponent implements OnInit, AfterViewInit {
 
   @ViewChild('spreadsheet') spreadsheet!: SpreadsheetComponent;
+  columnHeaders = signal<string[]>(['Project', 'Employee', 'Year', 'Month', 'Budget', 'Hours', 'Cost', 'Status', 'Comments']); // Custom headers
   sheets = signal<SheetDescriptor[]>([]);
   dropdowns = signal<any>({});
   dataLoaded = signal(false);
+    // In your component class
+  selectedRows = signal<number[]>([]);  // Track selected row indices reactively
+  totalRecords = signal(0); // New: Track total
+  private rowToId: Record<number, number> = {}; // row index -> id
   private appliedDropdowns = false;
   private injector: Injector;
   private lastFormattedRowCount = 0; // Track formatting state
+  private currentData: BudgetPlan[] = []; // For local sort/filter
+
+
+  // Filter/Sort state
+  filterProject = '';
+  filterEmployee = '';
+  filterYear?: number;
+  filterMonth?: string | number;  // Changed: allow string (name) or number (ID)
+  sortBy = '';
+  sortDir = 'asc';
 
   // Lookup maps
   private projectCodeToName: Record<string,string> = {};
@@ -32,9 +48,12 @@ export class SpreadsheetWrapperComponent implements OnInit, AfterViewInit {
   private monthIdToName: Record<number,string> = {};
   private monthNameToId: Record<string,number> = {};
   private statusNameToValue: Record<string,string> = {};
+  
 
-  constructor(private service: BudgetPlanService, injector: Injector) {
+  constructor(private service: BudgetPlanService, injector: Injector,private ngZone: NgZone) {
     this.injector = injector;
+
+    
 
     // Reactively apply dropdowns once spreadsheet and dropdown data are ready
     effect(() => {
@@ -87,14 +106,30 @@ export class SpreadsheetWrapperComponent implements OnInit, AfterViewInit {
       });
 
       this.dropdowns.set({ projects, employees, statuses, months });
-      this.loadData();
+      await this.loadData(); // Await to ensure
     } catch (error) {
       console.error('Error loading dropdown data:', error);
     }
   }
 
-  // In your component class
-selectedRows = signal<number[]>([]);  // Track selected row indices reactively
+  ngAfterViewInit() {
+  // Ensure load if not done
+    if (!this.dataLoaded()) {
+      this.loadData();
+    }
+}
+
+
+private freezeHeader() {
+  const widget: any = (this.spreadsheet as any).spreadsheetWidget;
+  if (widget) {
+    const sheet: any = widget.activeSheet();
+    if (sheet) {
+      sheet.frozenRows(1); // Freeze the first row (header)
+      console.log('Header frozen');
+    }
+  }
+}
 
 
 onSelectionChange(event: any): void {
@@ -126,51 +161,65 @@ onSelectionChange(event: any): void {
   }
 }
 
+async loadData() {
+try {
+    // Map month name to ID if filterMonth is string
+    let monthIdNum: number | undefined;
+    if (this.filterMonth && typeof this.filterMonth === 'string') {
+      monthIdNum = this.monthNameToId[this.filterMonth as string];
+    } else {
+      monthIdNum = this.filterMonth as number;
+    }
 
+    const params: any = {
+      ...(this.filterProject && { projectCodeOrName: this.filterProject }), // Updated param name
+      ...(this.filterEmployee && { employeeCodeOrName: this.filterEmployee }), // Updated param name
+      ...(this.filterYear && { year: this.filterYear }),
+...(this.filterMonth !== undefined && (() => {
+          if (typeof this.filterMonth === 'number') {
+            return { monthId: this.filterMonth };
+          } else {
+            return { monthName: this.filterMonth as string };
+          }
+        })()), // Send numeric only
+      ...(this.sortBy && { sortBy: this.sortBy }), // Now include sortBy
+      ...(this.sortDir && { sortDir: this.sortDir })
+    };
+    console.log('API Params:', params); // Debug
 
-ngAfterViewInit() {}
+    const res = await firstValueFrom(this.service.getPlans(params));
+    console.log('Loaded data:', res);
 
+      this.currentData = res.items; // For local ops
+      this.totalRecords.set(res.total);
+      this.rowToId = {};
 
-  private rowToId: Record<number, number> = {}; // row index -> id
-
-  loadData() {
-    this.service.getPlans({ page: 1, pageSize: 100 }).subscribe(res => {
-    this.rowToId = {}; // reset map
-
-    const rows = res.items.map((p, idx) => {
-      const rowIndex = idx + 2; // +2 because header is row 1
-      this.rowToId[rowIndex] = p.budgetPlanId;
-
-      return {
-        cells: [
-          { value: this.projectCodeToName[p.projectCode] ?? p.projectCode },
-          { value: this.employeeCodeToName[p.employeeCode] ?? p.employeeCode },
-          { value: p.year },
-          { value: this.monthIdToName[p.monthId] ?? p.monthId },
-          { value: p.budgetAllocated },
-          { value: p.hoursPlanned },
-          { value: p.cost ?? null },
-          { value: this.statusNameToValue[p.status] ?? p.status },
-          { value: p.comments ?? '' }
-        ]
-      };
+      const rows = res.items.map((p, idx) => {
+        const rowIndex = idx + 2;
+        this.rowToId[rowIndex] = p.budgetPlanId;
+        return {
+          cells: [
+            { value: this.projectCodeToName[p.projectCode] ?? p.projectCode },
+            { value: this.employeeCodeToName[p.employeeCode] ?? p.employeeCode },
+            { value: p.year },
+            { value: this.monthIdToName[p.monthId] ?? p.monthId },
+            { value: p.budgetAllocated },
+            { value: p.hoursPlanned},
+            { value: p.cost ?? null },
+            { value: this.statusNameToValue[p.status] ?? p.status },
+            { value: p.comments ?? '' }
+          ]
+        };
       });
 
-      const header = { cells: [
-        { value: 'Project', bold: true },
-        { value: 'Employee', bold: true },
-        { value: 'Year', bold: true },
-        { value: 'Month', bold: true },
-        { value: 'Budget', bold: true },
-        { value: 'Hours', bold: true },
-        { value: 'Cost', bold: true },
-        { value: 'Status', bold: true },
-        { value: 'Comments', bold: true }
-      ] };
+      const headers = this.columnHeaders(); // Use custom
+      const headerRow = { 
+        cells: headers.map(h => ({ value: h, bold: true })) 
+      };
 
       const sheet: SheetDescriptor = {
         name: 'Budget Plans',
-        rows: [ header, ...rows ],
+        rows: [ headerRow, ...rows ],
         columns: [
           { width: 160 }, { width: 160 }, { width: 80 }, { width: 100 },
           { width: 120 }, { width: 120 }, { width: 120 }, { width: 120 }, { width: 250 }
@@ -179,9 +228,142 @@ ngAfterViewInit() {}
 
       this.sheets.set([sheet]);
       this.dataLoaded.set(true);
-      this.lastFormattedRowCount = 0; // Reset formatting state
-    });
+      this.lastFormattedRowCount = 0;
+      // NEW: Apply dropdowns and freeze after a short delay to ensure sheet renders
+  setTimeout(() => {
+    this.applyDropdowns();
+    this.attachFormulasAndFormatting();
+  }, 150);
+    } catch (error : any) {
+    console.error('Load error:', error);
+    if (error.status === 400) {
+      console.error('Validation errors:', error.error?.errors); // Log details
+    }
+    alert(`Failed to load data: ${error.message || 'Check console for details.'}`);
   }
+}
+
+
+  // New: Apply Filter/Sort (Server-Side)
+  applyFilterSort() {
+    this.loadData();
+  }
+
+  // New: Clear Filter/Sort
+  clearFilterSort() {
+    this.filterProject = '';
+    this.filterEmployee = '';
+    this.filterYear = undefined;
+    this.filterMonth = undefined;
+    this.sortBy = '';
+    this.sortDir = 'asc';
+    this.loadData();
+  }
+
+
+// New helper: Case-insensitive comparison
+private caseInsensitiveCompare(a: string, b: string): number {
+  const lowerA = a.toLowerCase();
+  const lowerB = b.toLowerCase();
+  if (lowerA > lowerB) return 1;
+  if (lowerA < lowerB) return -1;
+  return 0; // Equal, preserve original order for stability
+}
+
+// Updated localSort (use display names, explicit direction)
+localSort(field: string, direction: 'asc' | 'desc' = 'asc') { // Default to desc
+  if (!this.currentData.length) return;
+
+  this.currentData.sort((a, b) => {
+    let valA: any = this.getFieldValue(a, field);
+    let valB: any = this.getFieldValue(b, field);
+
+    // Case-insensitive for strings
+    if (typeof valA === 'string' && typeof valB === 'string') {
+      const lowerA = valA.toLowerCase();
+      const lowerB = valB.toLowerCase();
+      return direction === 'desc'
+        ? lowerB.localeCompare(lowerA) // Desc: Z->A
+        : lowerA.localeCompare(lowerB); // Asc: A->Z
+    }
+
+    // Numbers: direct comparison
+    const numCompare = (valA as number) - (valB as number);
+    return direction === 'desc' ? -numCompare : numCompare;
+  });
+
+  this.updateSheetFromData();
+}
+
+// Update getFieldValue to return display names for sorting
+private getFieldValue(item: BudgetPlan, field: string): any {
+  switch (field) {
+    case 'projectCode':
+    case 'projectName': // Added alias for name-based sorting
+      return this.projectCodeToName[item.projectCode] ?? item.projectCode;
+    case 'employeeCode':
+    case 'employeeName': // Added alias
+      return this.employeeCodeToName[item.employeeCode] ?? item.employeeCode;
+    case 'year': return item.year;
+    case 'monthId': return item.monthId;
+    case 'budgetAllocated': return item.budgetAllocated;
+    case 'hoursPlanned': return item.hoursPlanned;
+    case 'status': return item.status;
+    default: return '';
+  }
+}
+
+private updateSheetFromData() {
+  // Map currentData to spreadsheet rows, reusing loadData's cell mapping
+  const rows = this.currentData.map((p, idx) => {
+    const rowIndex = idx + 2; // +2 because header is row 1
+    this.rowToId[rowIndex] = p.budgetPlanId; // Update row-to-ID mapping
+
+    return {
+      cells: [
+        { value: this.projectCodeToName[p.projectCode] ?? p.projectCode },
+        { value: this.employeeCodeToName[p.employeeCode] ?? p.employeeCode },
+        { value: p.year },
+        { value: this.monthIdToName[p.monthId] ?? p.monthId },
+        { value: p.budgetAllocated },
+        { value: p.hoursPlanned },
+        { value: p.cost ?? null },
+        { value: this.statusNameToValue[p.status] ?? p.status },
+        { value: p.comments ?? '' }
+      ]
+    };
+  });
+
+  // Use custom headers
+  const headers = this.columnHeaders();
+  const headerRow = { cells: headers.map(h => ({ value: h, bold: true })) };
+
+  // Build sheet with same structure as loadData
+  const sheet: SheetDescriptor = {
+    name: 'Budget Plans',
+    rows: [headerRow, ...rows],
+    columns: [
+      { width: 160 }, // Project
+      { width: 160 }, // Employee
+      { width: 80 },  // Year
+      { width: 100 }, // Month
+      { width: 120 }, // Budget
+      { width: 120 }, // Hours
+      { width: 120 }, // Cost
+      { width: 120 }, // Status
+      { width: 250 }  // Comments
+    ]
+  };
+
+  // Update sheet signal
+  this.sheets.set([sheet]);
+
+  // Reapply formatting and validations
+  setTimeout(() => this.attachFormulasAndFormatting(), 100);
+  this.freezeHeader();
+}
+
+  // Update
 
   private attachFormulasAndFormatting() {
     const widget: any = (this.spreadsheet as any).spreadsheetWidget;
@@ -383,6 +565,16 @@ private getSelectedRowIndices(): number[] {
     }
   }
 
+// New: Edit Custom Headers
+  editHeaders() {
+    const newHeaders = prompt('Enter comma-separated headers (e.g., Project,Employee,Year,...):', this.columnHeaders().join(','));
+    if (newHeaders) {
+      this.columnHeaders.set(newHeaders.split(',').map(h => h.trim()));
+      this.loadData(); // Reload to apply
+    }
+  }
+
+
   applyDropdowns() {
     const spreadsheet = this.spreadsheet;
     if (!spreadsheet) {
@@ -460,148 +652,190 @@ private getSelectedRowIndices(): number[] {
       setCustom('F2:F', 'AND(ISNUMBER(F2), F2>=0, F2<=999)', false);
       setCustom('G2:G', 'OR(ISBLANK(G2), AND(ISNUMBER(G2), G2>0))', true);
       setCustom('I2:I', 'LEN(I2)<=500', true);
-      
+      this.freezeHeader();
+      const widget: any = (this.spreadsheet as any).spreadsheetWidget;
+      if (widget) {
+        const sheet: any = widget.activeSheet();
+        if (sheet) {
+          // sheet.frozenRows(1); // Freeze header row
+        }
+      }
+      this.freezeHeader();
     } catch (error) {
       console.error('Error applying dropdowns and validations:', error);
     }
-  }
-
-  // saveData() {
-  //   const spreadsheet = this.spreadsheet;
-  //   if (!spreadsheet) return;
-
-  //   const workbook = (spreadsheet as any).spreadsheetWidget.toJSON();
-  //   const rows = workbook.sheets?.[0]?.rows ?? [];
-  //   const data = rows.slice(1);
-
-  //   const upserts: BudgetPlanUpsert[] = [];
-  //   data.forEach((r : any) => {
-  //     const c = r.cells ?? [];
-  //     const projectDisplay = c[0]?.value;
-  //     const employeeDisplay = c[1]?.value;
-
-  //     if (projectDisplay && employeeDisplay) {
-  //       const projectCode = this.projectNameToCode[projectDisplay] ?? (() => {
-  //         const m = /.*\((.*)\)\s*$/.exec(projectDisplay);
-  //         return m ? m[1] : projectDisplay;
-  //       })();
-  //       const employeeCode = this.employeeNameToCode[employeeDisplay] ?? employeeDisplay;
-
-  //       upserts.push({
-  //         projectCode,
-  //         employeeCode,
-  //         year: Number(c[2]?.value),
-  //         monthId: Number(this.monthNameToId[c[3]?.value] ?? c[3]?.value),
-  //         budgetAllocated: Number(c[4]?.value),
-  //         hoursPlanned: Number(c[5]?.value),
-  //         statusName: c[7]?.value,
-  //         comments: c[8]?.value ?? ''
-  //       });
-  //     }
-  //   });
-
-  //   if (upserts.length) {
-  //     this.service.bulkUpsert(upserts).subscribe(() => {
-  //       alert('Saved successfully!');
-  //       // Reset formatting state and reapply
-  //       this.lastFormattedRowCount = 0;
-  //       setTimeout(() => {
-  //         this.attachFormulasAndFormatting();
-  //       }, 100);
-  //     }, err => {
-  //       console.error('Save error', err);
-  //       alert('Save failed. See console.');
-  //     });
-  //   } else {
-  //     alert('No rows to save');
-  //   }
+  } 
+    // } catch (error) {
+    //   console.error('Error applying dropdowns and validations:', error);
+    // }
   // }
 
+
 saveData() {
-    const spreadsheet = this.spreadsheet;
-    if (!spreadsheet) return;
+  const spreadsheet = this.spreadsheet;
+  if (!spreadsheet) return;
 
-    const workbook = (spreadsheet as any).spreadsheetWidget.toJSON();
-    const rows = workbook.sheets?.[0]?.rows ?? [];
-    const data = rows.slice(1);
+  const workbook = (spreadsheet as any).spreadsheetWidget.toJSON();
+  const rows = workbook.sheets?.[0]?.rows ?? [];
+  const data = rows.slice(1);
 
-    const upserts: BudgetPlanUpsert[] = [];
-    const invalidRows: number[] = []; // Track invalid rows for feedback
+  const upserts: BudgetPlanUpsert[] = [];
+  const invalidCells: { rowIndex: number, colIndex: number, reason: string }[] = [];
+  const invalidRows: number[] = []; // Track invalid rows for feedback
 
-    data.forEach((r : any, rowIndex: number) => {
-      const c = r.cells ?? [];
-      const projectDisplay = c[0]?.value;
-      const employeeDisplay = c[1]?.value;
-      const yearVal = c[2]?.value;
-      const monthDisplay = c[3]?.value;
-      const budgetVal = c[4]?.value;
-      const hoursVal = c[5]?.value;
-      const statusName = c[7]?.value;
-      const comments = c[8]?.value ?? '';
+  data.forEach((r: any, dataRowIndex: number) => {
+    const rowIndex = dataRowIndex + 2; // 1-based row number for sheet
+    const c = r.cells ?? [];
+    const projectDisplay = c[0]?.value;
+    const employeeDisplay = c[1]?.value;
+    const yearVal = c[2]?.value;
+    const monthDisplay = c[3]?.value;
+    const budgetVal = c[4]?.value;
+    const hoursVal = c[5]?.value;
+    const statusName = c[7]?.value;
+    const comments = c[8]?.value ?? '';
 
-      // Validate and map
-      const projectCode = projectDisplay ? this.projectNameToCode[projectDisplay] : null;
-      const employeeCode = employeeDisplay ? this.employeeNameToCode[employeeDisplay] : null;
-      const monthId = monthDisplay ? this.monthNameToId[monthDisplay] : null;
-      const year = Number(yearVal);
-      const budgetAllocated = Number(budgetVal);
-      const hoursPlanned = Number(hoursVal);
+    // Map values (same as before)
+    const projectCode = projectDisplay ? this.projectNameToCode[projectDisplay] : null;
+    const employeeCode = employeeDisplay ? this.employeeNameToCode[employeeDisplay] : null;
+    const monthId = monthDisplay ? this.monthNameToId[monthDisplay] : null;
+    const year = Number(yearVal);
+    const budgetAllocated = Number(budgetVal);
+    const hoursPlanned = Number(hoursVal);
 
-      // Skip if any required mapping fails or values invalid
-      if (!projectCode || !employeeCode || monthId === null || monthId === undefined ||
-          isNaN(year) || year < 1000 || year > 4050 || year !== Math.floor(year) ||
-          isNaN(budgetAllocated) || budgetAllocated <= 0 ||
-          isNaN(hoursPlanned) || hoursPlanned < 0 || hoursPlanned > 999 ||
-          !statusName || !this.statusNameToValue[statusName] ||
-          comments.length > 500) {
-        invalidRows.push(rowIndex + 2); // 1-based row number
-        return;
-      }
+    let rowValid = true;
 
-      upserts.push({
-        projectCode,
-        employeeCode,
-        year,
-        monthId: Number(monthId),
-        budgetAllocated,
-        hoursPlanned,
-        statusName,
-        comments
+    // Cell-level validations with highlighting and specific reasons
+    if (!projectDisplay || !projectCode) {
+      invalidCells.push({ rowIndex, colIndex: 1, reason: 'Project name is required and must be a valid selection.' }); // A: Project
+      rowValid = false;
+    }
+    if (!employeeDisplay || !employeeCode) {
+      invalidCells.push({ rowIndex, colIndex: 2, reason: 'Employee name is required and must be a valid selection.' }); // B: Employee
+      rowValid = false;
+    }
+    if (isNaN(year) || year < 1000 || year > 4050 || year !== Math.floor(year)) {
+      invalidCells.push({ rowIndex, colIndex: 3, reason: 'Year must be a valid integer between 1000 and 4050.' }); // C: Year
+      rowValid = false;
+    }
+    if (!monthDisplay || monthId === null || monthId === undefined) {
+      invalidCells.push({ rowIndex, colIndex: 4, reason: 'Month is required and must be a valid selection.' }); // D: Month
+      rowValid = false;
+    }
+    if (isNaN(budgetAllocated) || budgetAllocated <= 0) {
+      invalidCells.push({ rowIndex, colIndex: 5, reason: 'Budget must be a number greater than 0.' }); // E: Budget
+      rowValid = false;
+    }
+    if (isNaN(hoursPlanned) || hoursPlanned < 0 || hoursPlanned > 999) {
+      invalidCells.push({ rowIndex, colIndex: 6, reason: 'Hours must be a number between 0 and 999.' }); // F: Hours
+      rowValid = false;
+    }
+    if (!statusName || !this.statusNameToValue[statusName]) {
+      invalidCells.push({ rowIndex, colIndex: 8, reason: 'Status is required and must be a valid selection.' }); // H: Status
+      rowValid = false;
+    }
+    if (comments.length > 200) {
+      invalidCells.push({ rowIndex, colIndex: 9, reason: 'Comments must not exceed 200 characters.' }); // I: Comments
+      rowValid = false;
+    }
+
+    if (!rowValid) {
+      invalidRows.push(rowIndex);
+      return;
+    }
+
+    upserts.push({
+      projectCode:projectCode!,
+      employeeCode:employeeCode!,
+      year,
+      monthId: Number(monthId),
+      budgetAllocated,
+      hoursPlanned,
+      statusName,
+      comments
+    });
+  });
+
+  console.log('Prepared upserts:', upserts); // For debugging
+  console.log('Invalid rows (skipped):', invalidRows); // For debugging
+
+if (invalidCells.length > 0) {
+  const widget = (this.spreadsheet as any).spreadsheetWidget;
+  const sheet = widget.activeSheet();
+
+  // Highlight only invalid cells
+  invalidCells.forEach(({ rowIndex, colIndex }) => {
+    const colLetter = this.getColumnLetter(colIndex);
+    const cell = sheet.range(`${colLetter}${rowIndex}`);
+    if (cell) {
+      cell.background('#f15663ff');
+      cell.color('#721c24');
+    }
+  });
+
+    // Specific alert: Group unique issues by row
+    const issuesByRow: Record<number, Set<string>> = {}; // Use Set to avoid duplicates
+    invalidCells.forEach(({ rowIndex, reason }) => {
+      if (!issuesByRow[rowIndex]) issuesByRow[rowIndex] = new Set();
+      issuesByRow[rowIndex].add(reason);
+    });
+
+    let alertMsg = 'Please correct the highlighted fields before submitting.\n\n';
+    alertMsg += `Issues found in rows: ${[...new Set(invalidRows)].sort((a, b) => a - b).join(', ')}.\n\n`;
+    alertMsg += 'Specific issues:\n';
+
+    Object.entries(issuesByRow).sort(([a], [b]) => Number(a) - Number(b)).forEach(([row, reasons]) => {
+      alertMsg += `\nRow ${row}:\n`;
+      reasons.forEach(reason => {
+        alertMsg += `• ${reason}\n`;
       });
     });
 
-    console.log('Prepared upserts:', upserts); // For debugging
-    console.log('Invalid rows (skipped):', invalidRows); // For debugging
-
-    if (upserts.length) {
-      this.service.bulkUpsert(upserts).subscribe((affected) => {
-        let msg = `Saved ${affected} rows successfully!`;
-        if (invalidRows.length > 0) {
-          msg += ` Skipped ${invalidRows.length} invalid rows (e.g., invalid dropdown values or numbers).`;
-        }
-        if (affected === 0) {
-          msg += ' No changes were made (e.g., no updates needed).';
-        }
-        alert(msg);
-        // Reset formatting state and reapply
-        this.lastFormattedRowCount = 0;
-        setTimeout(() => {
-          this.attachFormulasAndFormatting();
-        }, 100);
-        this.loadData(); // Reload to reflect changes
-      }, err => {
-        console.error('Save error', err);
-        alert('Save failed. Check console for details.');
-      });
-    } else {
-      let msg = 'No valid rows to save.';
-      if (invalidRows.length > 0) {
-        msg += ` All ${invalidRows.length} data rows had issues (e.g., invalid dropdown selections from paste, non-numeric values).`;
-      }
-      alert(msg);
-    }
+    alert(alertMsg);
+    return;
   }
 
+  if (upserts.length) {
+    this.service.bulkUpsert(upserts).subscribe((affected) => {
+      let msg = `Saved ${affected} rows successfully!`;
+      if (invalidRows.length > 0) {
+        msg += ` Skipped ${invalidRows.length} invalid rows (e.g., invalid dropdown values or numbers).`;
+      }
+      if (affected === 0) {
+        msg += ' No changes were made (e.g., no updates needed).';
+      }
+      alert(msg);
+      // Reset formatting state and reapply
+      this.lastFormattedRowCount = 0;
+      setTimeout(() => {
+        this.attachFormulasAndFormatting();
+      }, 100);
+      this.loadData(); // Reload to reflect changes
+    }, err => {
+      console.error('Save error', err);
+      alert('Save failed. Check console for details.');
+    });
+  } else {
+    let msg = 'No valid rows to save.';
+    if (invalidRows.length > 0) {
+      msg += ` All ${invalidRows.length} data rows had issues (e.g., invalid dropdown selections from paste, non-numeric values).`;
+    }
+    alert(msg);
+  }
+}
+
+
+// Add this helper method to your component class (SpreadsheetWrapperComponent)
+private getColumnLetter(col: number): string {
+  let letter = '';
+  let tempCol = col;
+  while (tempCol > 0) {
+    tempCol--;
+    letter = String.fromCharCode(65 + (tempCol % 26)) + letter;
+    tempCol = Math.floor(tempCol / 26);
+  }
+  return letter;
+}
 
 
 async deleteSelected() {

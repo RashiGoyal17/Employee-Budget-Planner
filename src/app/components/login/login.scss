@@ -1,0 +1,99 @@
+/* General body and container styling */
+:host {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh; /* Full viewport height */
+  width: 100vw; /* Full viewport width */
+  overflow: hidden; /* Prevent scrollbars */
+  background: radial-gradient(circle at 10% 20%, rgb(18, 59, 93) 0%, rgb(11, 23, 38) 90%);
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 30px 40px;
+  border-radius: 20px;
+  backdrop-filter: blur(10px) saturate(180%);
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  color: #fff;
+  width: 350px;
+  max-width: 90%;
+}
+
+/* Heading styling */
+h2 {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 2.5em;
+  font-weight: 600;
+  margin-bottom: 25px;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+/* Form and input styling */
+form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center; /* centers inputs horizontally */
+}
+
+input {
+  width: 80%; /* shrink width so it's centered inside container */
+  text-align: center; /* centers the text inside input */
+}
+
+
+input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* Placeholder text styling for better visibility */
+input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Button styling */
+button[type="submit"] {
+  width: 100%;
+  padding: 15px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+  text-transform: uppercase;
+  background: linear-gradient(to right, #ff416c, #ff4b2b);
+  color: #fff;
+  box-shadow: 0 4px 15px 0 rgba(255, 65, 108, 0.75);
+  transition: all 0.3s ease;
+}
+
+button[type="submit"]:disabled {
+  background: #333;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+button[type="submit"]:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px 0 rgba(255, 65, 108, 0.85);
+}
+
+/* Error message styling */
+.error {
+  margin-top: 15px;
+  color: #ff6347;
+  font-weight: bold;
+  text-align: center;
+}

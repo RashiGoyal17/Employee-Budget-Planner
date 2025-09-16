@@ -1,30 +1,75 @@
-<!-- <p>spreadsheet works!</p> -->
-
+<h1>Employee Budget Planner</h1>
 <div class="toolbar">
-    <button (click)="loadData()" class="btn btn-primary">Load Data</button>
-    <button (click)="saveData()" class="btn btn-success">Save Data</button>
-    <button type="button" (click)="fileInput.click()" class="btn btn-primary">Import Excel</button>
-    <input #fileInput type="file" accept=".xlsx,.xls" (change)="importExcel($event)" style="display: none;">
-    <button (click)="applyDropdowns()" class="btn btn-info">Re-apply Dropdowns</button>
-    <button (click)="deleteSelected()" class="btn btn-danger">Delete Selected</button>
-    <button (click)="exportToPDF()" class="btn btn-secondary">Export PDF</button>
+  <!-- Existing buttons -->
+  <button (click)="loadData()" class="btn btn-primary">Load Data</button>
+  <button (click)="saveData()" class="btn btn-success">Save Data</button>
+  <button type="button" (click)="fileInput.click()" class="btn btn-primary">Import Excel</button>
+  <input #fileInput type="file" accept=".xlsx,.xls" (change)="importExcel($event)" style="display: none;">
+  <button (click)="applyDropdowns()" class="btn btn-info">Re-apply Dropdowns</button>
+  <button (click)="deleteSelected()" class="btn btn-danger">Delete Selected</button>
+  <button (click)="exportToPDF()" class="btn btn-secondary">Export PDF</button>
+  
+
+  <!-- New: Filter/Sort UI -->
+  <div class="filter-section" style="margin-left: 20px; display: inline-block;">
+    <label>Filter Project: <input [(ngModel)]="filterProject" size="10"></label>
+    <label>Employee: <input [(ngModel)]="filterEmployee" size="10"></label>
+    <label>Year: <input [(ngModel)]="filterYear" type="number" size="5"></label>
+    <label>Month: <input [(ngModel)]="filterMonth" size="5"></label>
+    <button (click)="applyFilterSort()" class="btn btn-sm btn-primary">Apply</button>
+    <button (click)="clearFilterSort()" class="btn btn-sm btn-secondary">Clear</button>
+  </div>
+  <div class="sort-section" style="margin-left: 10px; display: inline-block;">
+    <label>Sort By: 
+      <select [(ngModel)]="sortBy">
+        <option value="">Default</option>
+        <option value="projectCode">Project</option>
+        <option value="employeeCode">Employee</option>
+        <option value="year">Year</option>
+        <option value="monthId">Month</option>
+        <option value="budgetAllocated">Budget</option>
+        <option value="hoursPlanned">Hours</option>
+        <option value="status">Status</option>
+      </select>
+    </label>
+    <label>Dir: 
+      <select [(ngModel)]="sortDir">
+        <option value="asc">Asc</option>
+        <option value="desc">Desc</option>
+      </select>
+    </label>
+    <button (click)="applyFilterSort()" class="btn btn-sm btn-primary">Sort</button>
+  </div>
+
+  <!-- New: Local Sort Buttons (Frontend Sort) -->
+  <div class="local-sort" style="margin-left: 10px; display: inline-block;">
+    <button (click)="localSort('projectCode')" class="btn btn-sm btn-outline-primary">Sort Project</button>
+    <button (click)="localSort('employeeCode')" class="btn btn-sm btn-outline-primary">Sort Employee</button>
+    <!-- Add more as needed -->
+  </div>
+
+  <!-- New: Custom Headers -->
+  <button (click)="editHeaders()" class="btn btn-sm btn-warning">Edit Headers</button>
 </div>
 
 <div class="validation-info">
-    <small>
-        <strong>Validation Rules:</strong>
+  <small>
+    <strong>Validation Rules:</strong>
         Project, Employee, Month & Status: Dropdowns (Required) | 
         Year: 1000-4050 (Whole Numbers) | 
         Budget: Positive Decimals (Required) | 
         Hours: 0-999 Decimals (Required) |
         Cost: Positive Decimals (Optional) |
         Comments: Max 500 chars
-    </small>
+    <br><strong>Copy-Paste:</strong> Paste from Excel (Ctrl+V) - validations auto-reject invalid data.
+  </small>
 </div>
 
+<div>Total Records: {{ totalRecords() }}</div>
+
 <kendo-spreadsheet 
-    #spreadsheet 
-    [sheets]="sheets()" 
-    style="height:600px;width:100%" 
-    (selectionChange)="onSelectionChange($event)">
+  #spreadsheet 
+  [sheets]="sheets()" 
+  style="height:600px;width:100%" 
+  (selectionChange)="onSelectionChange($event)">
 </kendo-spreadsheet>

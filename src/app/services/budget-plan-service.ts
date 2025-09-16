@@ -12,21 +12,21 @@ export class BudgetPlanService {
 
   constructor(private http: HttpClient) {}
 
-  getPlans(query: {
-    projectCode?: string;
-    employeeCode?: string;
+getPlans(query: {
+    projectCodeOrName?: string;  // Changed from projectCode
+    employeeCodeOrName?: string; // Changed from employeeCode
     year?: number;
     monthId?: number;
-    page?: number;
-    pageSize?: number;
-  }): Observable<PagedResult<BudgetPlan>> {
+    monthName?: string;          // Added
+    sortBy?: string;             // Added
+    sortDir?: string;            // Added
+}): Observable<PagedResult<BudgetPlan>> {
     let params = new HttpParams();
     Object.entries(query).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) params = params.set(k, v.toString());
+        if (v !== undefined && v !== null) params = params.set(k, v.toString());
     });
     return this.http.get<PagedResult<BudgetPlan>>(`${this.apiRoot}/budgetplans`, { params });
-  }
-
+}
   
   getProjects()   { return this.http.get<{ code: string; name: string }[]>(`${this.apiRoot}/projects`); }
   getEmployees()  { return this.http.get<{ employeeCode: string; name: string }[]>(`${this.apiRoot}/employees`); }
